@@ -187,7 +187,7 @@ def get_plot_annotations(
                 y=-0.1,
                 xref="x",
                 yref="paper",
-                text=f"^{item['char']}",
+                text=f"🌄{item['char']}",
                 showarrow=False,
                 font=dict(color=item["color"], size=14),
             )
@@ -199,7 +199,7 @@ def get_plot_annotations(
                 y=-0.1,
                 xref="x",
                 yref="paper",
-                text=f"v{item['char']}",
+                text=f"🌇{item['char']}",
                 showarrow=False,
                 font=dict(color=item["color"], size=14),
             )
