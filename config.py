@@ -21,3 +21,4 @@ def get_api_key(env_var_name: str) -> str:
 
 # --- Load Specific Keys ---
 OPENWEATHER_API_KEY = get_api_key("OPENWEATHER_API_KEY")
+WEATHERAPI_API_KEY = get_api_key("WEATHERAPI_API_KEY")

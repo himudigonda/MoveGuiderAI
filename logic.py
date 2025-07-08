@@ -8,40 +8,69 @@ import numpy as np
 
 def parse_weather_data(data: Dict[str, Any]) -> pd.DataFrame:
     """
-    Parses the hourly weather data from the API response into a pandas DataFrame.
+    REVISED: Parses the hourly weather data from the WeatherAPI.com response.
     """
-    hourly_data = data["hourly"]
-    df = pd.DataFrame(hourly_data)
-    timezone_str = data["timezone"]
+    # The new JSON structure nests hourly data inside daily forecasts.
+    # We need to extract and combine them.
+    all_hours = []
+    for day in data["forecast"]["forecastday"]:
+        all_hours.extend(day["hour"])
+
+    df = pd.DataFrame(all_hours)
+
+    # Timezone is in a different location in the new JSON
+    timezone_str = data["location"]["tz_id"]
+
+    # "time_epoch" is the unix timestamp, "time" is a string version
     df["dt"] = (
-        pd.to_datetime(df["dt"], unit="s")
+        pd.to_datetime(df["time_epoch"], unit="s")
         .dt.tz_localize("UTC")
         .dt.tz_convert(timezone_str)
     )
 
-    # --- NEW: Extract sunrise for today ---
-    # We also need daily data to get sunrise/sunset
-    daily_data = data["daily"][0]  # Today's data
-    df["sunrise"] = (
-        pd.to_datetime(daily_data["sunrise"], unit="s")
-        .dt.tz_localize("UTC")
-        .dt.tz_convert(timezone_str)
+    # Sunrise/Sunset are in the daily forecast, not hourly
+    # We'll map the daily sunrise/sunset to each hour of that day.
+    sunrise_sunset_map = {
+        day["date"]: {
+            "sunrise": day["astro"]["sunrise"],
+            "sunset": day["astro"]["sunset"],
+        }
+        for day in data["forecast"]["forecastday"]
+    }
+
+    def parse_astro_time(astro_time_str, date, tz):
+        # WeatherAPI sunrise/sunset is like "06:30 AM". We need to combine it with the date.
+        return tz.localize(
+            datetime.strptime(f"{date} {astro_time_str}", "%Y-%m-%d %I:%M %p")
+        )
+
+    df["sunrise"] = df["dt"].apply(
+        lambda x: parse_astro_time(
+            sunrise_sunset_map[x.strftime("%Y-%m-%d")]["sunrise"],
+            x.strftime("%Y-%m-%d"),
+            pytz.timezone(timezone_str),
+        )
     )
-    df["sunset"] = (
-        pd.to_datetime(daily_data["sunset"], unit="s")
-        .dt.tz_localize("UTC")
-        .dt.tz_convert(timezone_str)
+    df["sunset"] = df["dt"].apply(
+        lambda x: parse_astro_time(
+            sunrise_sunset_map[x.strftime("%Y-%m-%d")]["sunset"],
+            x.strftime("%Y-%m-%d"),
+            pytz.timezone(timezone_str),
+        )
     )
 
-    df = df[["dt", "temp", "humidity", "uvi", "sunrise", "sunset"]]
+    # Select and rename columns to match what our plotting functions expect
+    # Note: WeatherAPI uses 'temp_c' and 'uv'
+    df = df[["dt", "temp_c", "humidity", "uv", "sunrise", "sunset"]]
     df = df.rename(
         columns={
             "dt": "Time",
-            "temp": "Temperature (°C)",
+            "temp_c": "Temperature (°C)",
             "humidity": "Humidity (%)",
-            "uvi": "UV Index",
+            "uv": "UV Index",
         }
     )
+
     df.set_index("Time", inplace=True)
     return df
 
