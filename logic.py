@@ -3,6 +3,7 @@ import pandas as pd
 from typing import Dict, Any
 import pytz
 from datetime import datetime, time, timedelta
+import numpy as np
 
 
 def parse_weather_data(data: Dict[str, Any]) -> pd.DataFrame:
@@ -101,3 +102,42 @@ def create_routine_df(city_df: pd.DataFrame, city_name: str) -> pd.DataFrame:
     # Create DataFrame
     routine_df = pd.DataFrame(tasks)
     return routine_df
+
+
+def model_energy_curve(wake_time: time, sleep_time: time) -> pd.DataFrame:
+    """
+    Models a user's energy/performance curve over 24 hours.
+    """
+    # Convert time objects to hours (float)
+    wake_hour = wake_time.hour + wake_time.minute / 60
+    sleep_hour = sleep_time.hour + sleep_time.minute / 60
+
+    # If bedtime is on the next day (e.g., wake at 6, sleep at 1 AM)
+    if sleep_hour < wake_hour:
+        sleep_hour += 24
+
+    sleep_duration = sleep_hour - wake_hour
+
+    hours_in_day = np.linspace(0, 24, 24 * 4)  # 15-minute intervals
+    performance = np.zeros_like(hours_in_day)
+
+    # Simple model: a sine wave that peaks mid-day + smaller ultradian rhythms
+    for i, hour in enumerate(hours_in_day):
+        if wake_hour <= hour < sleep_hour:
+            # 1. Circadian Rhythm (24-hour cycle)
+            # This sine wave starts at a low point at wake-up and peaks in the afternoon
+            circadian_phase = (hour - wake_hour) / (sleep_duration) * np.pi
+            circadian_effect = 0.8 * (np.sin(circadian_phase) + 0.1)  # Base performance
+            # 2. Post-lunch dip (a negative gaussian curve around 2 PM)
+            dip_hour = 14.0
+            dip_effect = -0.2 * np.exp(-((hour - dip_hour) ** 2) / 4)
+            # 3. Ultradian Rhythm (~90-minute cycles of focus)
+            ultradian_phase = (hour - wake_hour) / 1.5 * 2 * np.pi
+            ultradian_effect = 0.1 * np.sin(ultradian_phase)
+            performance[i] = (circadian_effect + dip_effect + ultradian_effect) * 100
+    # Clip values to be between 0 and 100
+    performance = np.clip(performance, 5, 100)
+    # Create DataFrame
+    curve_df = pd.DataFrame({"Hour": hours_in_day, "Performance": performance})
+    curve_df = curve_df.round(1)
+    return curve_df

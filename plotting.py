@@ -50,3 +50,27 @@ def plot_gantt_chart(df: pd.DataFrame, city_name: str):
 
     fig.update_layout(xaxis_title="Time of Day")
     return fig
+
+
+def plot_energy_curve(df: pd.DataFrame):
+    """
+    Plots the modeled energy performance curve.
+    """
+    fig = px.line(
+        df,
+        x="Hour",
+        y="Performance",
+        title="Predicted Energy Performance Curve",
+        labels={"Performance": "Performance (%)", "Hour": "Hour of Day"},
+    )
+    # Add a fill to make it look like an area chart
+    fig.update_traces(
+        fill="tozeroy",
+        line=dict(color="rgba(0, 114, 255, 1)"),
+        fillcolor="rgba(0, 114, 255, 0.2)",
+    )
+    fig.update_xaxes(
+        range=[0, 24], dtick=2
+    )  # Set x-axis from 0 to 24 with ticks every 2 hours
+    fig.update_yaxes(range=[0, 105])
+    return fig
