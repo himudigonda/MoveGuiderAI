@@ -1,0 +1,11 @@
+# .gitignore
+
+# Environments
+.venv/
+venv/
+__pycache__/
+
+# Secrets
+.env
+*.env
+dumper.sh
