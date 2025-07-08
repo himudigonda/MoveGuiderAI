@@ -18,8 +18,9 @@ def plot_comfort_wheel(df: pd.DataFrame, city1_name: str, city2_name: str):
     metric_order = ideal_df["Metric"]
     fig.add_trace(
         go.Scatterpolar(
-            r=list(ideal_df["max"]) + list(ideal_df["max"])[::1],
-            theta=list(ideal_df["Metric"]) + list(ideal_df["Metric"])[::1],
+            r=list(ideal_df["max"])
+            + list(ideal_df["max"])[:1],  # stylistic: closes loop with first value
+            theta=list(ideal_df["Metric"]) + list(ideal_df["Metric"])[:1],
             fill="toself",
             fillcolor="rgba(44, 160, 44, 0.2)",
             line=dict(color="rgba(44, 160, 44, 0.4)"),
@@ -38,8 +39,9 @@ def plot_comfort_wheel(df: pd.DataFrame, city1_name: str, city2_name: str):
         )
         fig.add_trace(
             go.Scatterpolar(
-                r=list(city_df["Value"]) + list(city_df["Value"])[::1],
-                theta=list(city_df["Metric"]) + list(city_df["Metric"])[::1],
+                r=list(city_df["Value"])
+                + list(city_df["Value"])[:1],  # stylistic: closes loop with first value
+                theta=list(city_df["Metric"]) + list(city_df["Metric"])[:1],
                 fill="toself",
                 fillcolor=config["fill"],
                 line=dict(color=config["color"]),

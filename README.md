@@ -50,7 +50,6 @@ The project is structured with a clear separation of concerns, making it easy to
 * `plotting/`: A package containing all data visualization functions. Each module returns a Plotly Figure object.
 * `data/`: Contains data files, such as the `user_profiles.json` for storing user settings.
 * `config.py`: Loads and provides access to configuration and secret keys from the `.env` file.
-* `.env`: A local, untracked file for storing secret API keys.
 
 ---
 
