@@ -1,60 +1,66 @@
 # plotting.py
 import plotly.express as px
+import plotly.graph_objects as go  # Import graph_objects
 import pandas as pd
 import numpy as np
+import webcolors
+from colorsys import rgb_to_hls, hls_to_rgb
 
 
 def plot_combined_metric(
     df: pd.DataFrame, metric: str, city1: str, city2: str, annotations: dict
 ):
     """
-    Creates a single, combined, multi-layered chart for a given metric.
+    REWRITTEN: Creates a sophisticated, multi-trace plot with daily dashed lines
+    and a solid average line for each city.
     """
+    fig = go.Figure()
+    # --- Define color schemes ---
     city_colors = {city1: "red", city2: "green"}
-    day_list = df["Day"].unique()
 
+    # Helper to get color gradients
     def get_color_gradient(base_color, n):
-        from colorsys import rgb_to_hls, hls_to_rgb
-        import webcolors
-
         r, g, b = webcolors.name_to_rgb(base_color)
         h, l, s = rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
         lightness_gradient = np.linspace(l + 0.2, l - 0.1, n)
-
-        # Convert float RGB to int for webcolors.rgb_to_hex
-        def float_rgb_to_int(rgb_tuple):
-            # Ensure tuple is exactly 3 elements (R, G, B)
-            rgb = tuple(int(round(x * 255)) for x in rgb_tuple[:3])
-            return (rgb[0], rgb[1], rgb[2])  # force 3-tuple
-
         return [
-            webcolors.rgb_to_hex(float_rgb_to_int(hls_to_rgb(h, light, s)))
+            f"rgb{tuple(int(x * 255) for x in hls_to_rgb(h, light, s))}"
             for light in np.clip(lightness_gradient, 0, 1)
         ]
 
-    color_map = {}
-    color_map.update(
-        {
-            f"{city1} {day}": color
-            for day, color in zip(day_list, get_color_gradient("red", len(day_list)))
-        }
-    )
-    color_map.update(
-        {
-            f"{city2} {day}": color
-            for day, color in zip(day_list, get_color_gradient("green", len(day_list)))
-        }
-    )
-    df["Series"] = df["City"] + " " + df["Day"]
-    fig = px.line(
-        df,
-        x="Hour",
-        y=metric,
-        color="Series",
-        color_discrete_map=color_map,
-        title=f"Hourly {metric.split('(')[0].strip()}: {city2.split(',')[0]} (green) vs {city1.split(',')[0]} (red)",
-    )
+    # --- Plotting logic ---
+    for city_name, base_color in city_colors.items():
+        city_df = df[df["City"] == city_name]
+        days = city_df["Day"].unique()
+        color_palette = get_color_gradient(base_color, len(days))
+        # 1. Plot each day's smoothed data as a thin, dashed line
+        for i, day in enumerate(days):
+            day_df = city_df[city_df["Day"] == day]
+            fig.add_trace(
+                go.Scatter(
+                    x=day_df["Hour"],
+                    y=day_df[metric],
+                    mode="lines",
+                    line=dict(color=color_palette[i], width=1.5, dash="dash"),
+                    name=f"{city_name.split(',')[0]} {day}",
+                    legendgroup=city_name,
+                )
+            )
+        # 2. Plot the solid average line for the city
+        avg_df = city_df[["Hour", "Average"]].drop_duplicates().sort_values("Hour")
+        fig.add_trace(
+            go.Scatter(
+                x=avg_df["Hour"],
+                y=avg_df["Average"],
+                mode="lines",
+                line=dict(color=base_color, width=4),
+                name=f"{city_name.split(',')[0]} Avg",
+                legendgroup=city_name,
+            )
+        )
+    # --- Apply Layout and Annotations ---
     fig.update_layout(
+        title=f"Hourly {metric.split('(')[0].strip()}: {city2.split(',')[0]} (green) vs {city1.split(',')[0]} (red)",
         xaxis_title="Time of Day (AZ Time)",
         yaxis_title=metric,
         xaxis=dict(
@@ -64,12 +70,12 @@ def plot_combined_metric(
         ),
         plot_bgcolor="white",
         margin=dict(b=100),
-        legend_title_text="Forecast Day",
+        legend_title_text="Forecast",
     )
     fig.update_layout(shapes=annotations["shapes"])
     for anno in annotations["annotations"]:
         fig.add_annotation(**anno)
-    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor="lightgray", range=[0, 24])
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="lightgray")
     return fig
 

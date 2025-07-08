@@ -74,7 +74,7 @@ def parse_weather_data(data: dict) -> pd.DataFrame:
     return df
 
 
-# --- NEW: Function to create a unified DataFrame for plotting ---
+# --- MODIFIED: Function to create a unified DataFrame for plotting ---
 def create_unified_df(
     city1_df: pd.DataFrame,
     city1_name: str,
@@ -83,7 +83,7 @@ def create_unified_df(
     metric_col: str,
 ) -> pd.DataFrame:
     """
-    Combines data from two city DataFrames into a single, plot-ready DataFrame.
+    Combines data, smooths it, and calculates daily averages.
     Normalizes all times to Arizona Time.
     """
     home_tz = pytz.timezone("America/Phoenix")
@@ -96,12 +96,32 @@ def create_unified_df(
             processed_df["Time_AZ"].dt.hour + processed_df["Time_AZ"].dt.minute / 60
         )
         processed_df["Day"] = processed_df["Time_AZ"].dt.strftime("%a %d")
-        return processed_df[["Hour", metric_col, "City", "Day"]]
+        # --- NEW: Add a smoothed version of the metric using a rolling average ---
+        smoothed_col_name = f"Smoothed_{metric_col}"
+        processed_df[smoothed_col_name] = (
+            processed_df[metric_col]
+            .rolling(window=4, center=True, min_periods=1)
+            .mean()
+        )
+        return processed_df
 
-    unified_df = pd.concat(
+    # Combine data from both cities
+    full_df = pd.concat(
         [process_df(city1_df, city1_name), process_df(city2_df, city2_name)]
     )
-    return unified_df
+
+    # --- NEW: Calculate the daily average for each city ---
+    avg_df = (
+        full_df.groupby(["City", "Hour"])[f"Smoothed_{metric_col}"].mean().reset_index()
+    )
+    avg_df.rename(columns={f"Smoothed_{metric_col}": "Average"}, inplace=True)
+
+    # Merge the average back into the main dataframe
+    full_df = pd.merge(full_df, avg_df, on=["City", "Hour"])
+
+    return full_df[["Hour", f"Smoothed_{metric_col}", "City", "Day", "Average"]].rename(
+        columns={f"Smoothed_{metric_col}": metric_col}
+    )
 
 
 # --- NEW: Function to get all annotations for the plots ---
