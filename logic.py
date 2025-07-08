@@ -124,84 +124,45 @@ def create_unified_df(
     )
 
 
-# --- NEW: Function to get all annotations for the plots ---
+# --- MODIFIED: Function to get all annotations for the plots ---
 def get_plot_annotations(
     city1_df: pd.DataFrame, city1_name: str, city2_df: pd.DataFrame, city2_name: str
 ) -> dict:
     """
-    Generates the background shading and text annotations for the combined plots.
+    Generates a simplified background highlight for daylight hours and text annotations.
     All times are in Arizona Time (0-24 hours).
     """
     home_tz = pytz.timezone("America/Phoenix")
-    shapes = [
-        dict(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=9,
-            y0=0,
-            x1=17,
-            y1=1,
-            fillcolor="rgba(255, 87, 87, 0.2)",
-            layer="below",
-            line_width=0,
-        ),
-        dict(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=6,
-            y0=0,
-            x1=8,
-            y1=1,
-            fillcolor="rgba(44, 160, 44, 0.2)",
-            layer="below",
-            line_width=0,
-        ),
-        dict(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=8,
-            y0=0,
-            x1=9,
-            y1=1,
-            fillcolor="rgba(255, 159, 64, 0.2)",
-            layer="below",
-            line_width=0,
-        ),
-        dict(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=12,
-            y0=0,
-            x1=13,
-            y1=1,
-            fillcolor="rgba(255, 159, 64, 0.2)",
-            layer="below",
-            line_width=0,
-        ),
-        dict(
-            type="rect",
-            xref="x",
-            yref="paper",
-            x0=19,
-            y0=0,
-            x1=20,
-            y1=1,
-            fillcolor="rgba(255, 159, 64, 0.2)",
-            layer="below",
-            line_width=0,
-        ),
-    ]
-    text_annotations = []
 
     def to_az_hour(dt_aware):
         return (
             dt_aware.astimezone(home_tz).hour + dt_aware.astimezone(home_tz).minute / 60
         )
 
+    # --- NEW: Simplified Daylight Highlight ---
+    # We'll use City 1 (the 'red' city) as the reference for the daylight band.
+    # We take the sunrise/sunset from the first day of its forecast.
+    sunrise_ref = city1_df["sunrise"].iloc[0]
+    sunset_ref = city1_df["sunset"].iloc[0]
+
+    shapes = [
+        # Single, yellow highlight for daylight hours of City 1
+        dict(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=to_az_hour(sunrise_ref),
+            y0=0,
+            x1=to_az_hour(sunset_ref),
+            y1=1,
+            fillcolor="rgba(255, 224, 130, 0.3)",  # Soft yellow/gold color
+            layer="below",
+            line_width=0,
+        ),
+    ]
+
+    # --- UNCHANGED: The text annotations for exact sun times are still useful ---
+    text_annotations = []
     sun_times = [
         {
             "city": city1_name,
@@ -219,6 +180,7 @@ def get_plot_annotations(
         },
     ]
     for item in sun_times:
+        # Sunrise annotation
         text_annotations.append(
             dict(
                 x=to_az_hour(item["sunrise"]),
@@ -230,6 +192,7 @@ def get_plot_annotations(
                 font=dict(color=item["color"], size=14),
             )
         )
+        # Sunset annotation
         text_annotations.append(
             dict(
                 x=to_az_hour(item["sunset"]),
