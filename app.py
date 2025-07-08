@@ -18,6 +18,7 @@ from logic.planner import (
 from logic.performance import model_energy_curve
 from logic.hydration import calculate_hydration_needs
 from logic.user_profiles import load_profiles, get_profile_names, save_profile
+from logic.generator import generate_move_checklist_text
 
 from plotting.line_charts import plot_combined_metric
 
@@ -35,7 +36,7 @@ if "active_profile" not in st.session_state:
 
 # --- Sidebar for Profile Management ---
 with st.sidebar:
-    st.header("👤 Profile & Routine")
+    st.header("\U0001f464 Profile & Routine")
 
     profile_names = get_profile_names()
 
@@ -60,6 +61,15 @@ with st.sidebar:
     routine_df = pd.DataFrame(active_profile_data.get("routine", []))
 
     st.subheader("Your Settings")
+
+    # --- NEW Chronotype Selector ---
+    chronotype_options = ["Default", "Morning Lark", "Night Owl"]
+    chronotype = st.selectbox(
+        "Your Chronotype",
+        options=chronotype_options,
+        index=chronotype_options.index(user_settings.get("chronotype", "Default")),
+    )
+
     weight = st.number_input(
         "Your Weight (kg)",
         min_value=40,
@@ -88,6 +98,7 @@ with st.sidebar:
                 "weight_kg": weight,
                 "wake_time": wake_str,
                 "sleep_time": sleep_str,
+                "chronotype": chronotype,
             },
             "routine": edited_routine_df.to_dict("records"),
         }
@@ -126,6 +137,78 @@ def get_city_data(city_name: str):
     return parse_weather_data(weather_data)
 
 
+# --- Move Checklist Generator ---
+def generate_move_checklist(city1, city2, plan_mode, sim_month, user_profile):
+    """
+    Generates a personalized move checklist based on cities, planning mode, month, and user profile.
+    """
+    checklist = []
+    # General items
+    checklist.append(
+        f"✅ Research cost of living and housing in both {city1.split(',')[0]} and {city2.split(',')[0]}"
+    )
+    checklist.append(
+        f"✅ Check visa/work permit requirements if moving internationally"
+    )
+    checklist.append(
+        f"✅ Set up mail forwarding and update your address with banks, subscriptions, etc."
+    )
+    checklist.append(
+        f"✅ Arrange for internet and utilities setup at your new location"
+    )
+    checklist.append(f"✅ Back up important digital files and documents")
+    checklist.append(
+        f"✅ Notify your employer/team of your move and update your working hours if needed"
+    )
+
+    # Weather/seasonal items
+    if plan_mode == "Seasonal Simulation" and sim_month:
+        checklist.append(
+            f"✅ Review typical weather for {sim_month} in both cities (see above charts)"
+        )
+        checklist.append(
+            f"✅ Pack clothing suitable for {sim_month} conditions in {city2.split(',')[0]}"
+        )
+        checklist.append(
+            f"✅ Prepare for local climate: e.g., {'high humidity' if 'Humidity' in user_profile.get('user_settings', {}).get('chronotype', '') else 'heat/UV'} in {sim_month}"
+        )
+    else:
+        checklist.append(
+            f"✅ Check 7-day weather forecast for both cities (see above charts)"
+        )
+        checklist.append(
+            f"✅ Pack for current weather conditions in {city2.split(',')[0]}"
+        )
+
+    # Routine/time zone items
+    wake = user_profile.get("user_settings", {}).get("wake_time", "07:00")
+    sleep = user_profile.get("user_settings", {}).get("sleep_time", "22:00")
+    checklist.append(
+        f"✅ Adjust your daily routine: wake at {wake}, sleep at {sleep} (local time)"
+    )
+    checklist.append(f"✅ Update calendar events and reminders to new time zone")
+    checklist.append(
+        f"✅ Plan for best workout times based on local weather (see recommendations above)"
+    )
+
+    # Health & wellness
+    checklist.append(
+        f"✅ Review hydration needs for your new city (see Hydration Timeline)"
+    )
+    checklist.append(
+        f"✅ Prepare for changes in sunlight hours (see Gantt/energy charts)"
+    )
+    checklist.append(f"✅ Set up a new healthcare provider if needed")
+
+    # Remote work
+    checklist.append(
+        f"✅ Test your remote work setup (Wi-Fi, VPN, video calls) in the new location"
+    )
+    checklist.append(f"✅ Research local coworking spaces or cafes if needed")
+
+    return checklist
+
+
 # --- Main App Body ---
 st.title("MoveGuiderAI 🏙️")
 st.markdown("A relocation intelligence platform for remote professionals.")
@@ -156,6 +239,10 @@ if "df1" in st.session_state:
     wake_time = get_time_from_str(current_settings.get("wake_time"), time(6, 0))
     sleep_time = get_time_from_str(current_settings.get("sleep_time"), time(22, 30))
     user_routine = st.session_state.active_profile.get("routine", [])
+
+    # Get chronotype from the active profile
+    user_settings = st.session_state.active_profile.get("user_settings", {})
+    chronotype_setting = user_settings.get("chronotype", "Default")
 
     # --- GANTT CHART SECTION (RE-ORGANIZED INTO COLUMNS) ---
     st.header("🗓️ Daily Routine Planner")
@@ -224,41 +311,32 @@ if "df1" in st.session_state:
                 st.info("No ideal slots found in the next 3 days.")
 
     st.header("\U0001f9d8 Personalized Productivity & Wellness")
-    st.plotly_chart(
-        plot_energy_curve(model_energy_curve(wake_time, sleep_time)),
-        use_container_width=True,
+
+    # --- UPDATED Energy Curve Call ---
+    energy_df = model_energy_curve(wake_time, sleep_time, chronotype_setting)
+    st.plotly_chart(plot_energy_curve(energy_df), use_container_width=True)
+
+    # --- SIMPLIFIED: MOVE CHECKLIST GENERATOR (.txt) ---
+    st.header("✅ Your Personalized Move Plan")
+    st.markdown(
+        "A practical, actionable checklist generated from your comparison to help you prepare."
     )
 
-    # --- UPDATED: Hydration and Comfort Wheel plotting ---
-    hydration_df1 = calculate_hydration_needs(df1, user_weight_kg)
-    hydration_df2 = calculate_hydration_needs(df2, user_weight_kg)
-    st.plotly_chart(
-        plot_combined_hydration(hydration_df1, c1_name, hydration_df2, c2_name),
-        use_container_width=True,
+    plan_mode = st.session_state.get("plan_mode", "7-Day Forecast")
+    sim_month = st.session_state.get("selected_month_name", None)
+
+    # Generate the checklist as a single string
+    checklist_text = generate_move_checklist_text(
+        c1_name, c2_name, plan_mode, sim_month, st.session_state.active_profile
     )
 
-    comfort_df = prepare_comfort_wheel_data(df1, c1_name, df2, c2_name)
-    st.plotly_chart(
-        plot_comfort_wheel(comfort_df, c1_name, c2_name), use_container_width=True
-    )
+    # Display a preview in a code block for clean formatting
+    st.text_area("Checklist Preview", checklist_text, height=300)
 
-    # (Environmental Comparison line charts section is now last)
-    st.header("\U0001f327️ Environmental Comparison")
-    annotations = get_plot_annotations(df1, c1_name, df2, c2_name)
-    temp_df = create_unified_df(df1, c1_name, df2, c2_name, "Temperature (°C)")
-    st.plotly_chart(
-        plot_combined_metric(
-            temp_df, "Temperature (°C)", c1_name, c2_name, annotations
-        ),
-        use_container_width=True,
-    )
-    hum_df = create_unified_df(df1, c1_name, df2, c2_name, "Humidity (%)")
-    st.plotly_chart(
-        plot_combined_metric(hum_df, "Humidity (%)", c1_name, c2_name, annotations),
-        use_container_width=True,
-    )
-    uv_df = create_unified_df(df1, c1_name, df2, c2_name, "UV Index")
-    st.plotly_chart(
-        plot_combined_metric(uv_df, "UV Index", c1_name, c2_name, annotations),
-        use_container_width=True,
+    # Add a download button for the .txt file
+    st.download_button(
+        label="\U0001f4e5 Download Checklist (.txt)",
+        data=checklist_text,
+        file_name=f"MoveGuiderAI_Checklist_{c1_name.split(',')[0]}_to_{c2_name.split(',')[0]}.txt",
+        mime="text/plain",
     )
