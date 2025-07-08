@@ -1,21 +1,19 @@
 # MoveGuiderAI 🏙️
 
-**A comparative analytics dashboard for personal productivity and environmental metrics.**
+**A relocation intelligence platform for remote professionals.**
 
-MoveGuiderAI is an interactive web application built with Streamlit that helps users, particularly remote workers, compare two cities side-by-side. It fetches real-time environmental data and combines it with personalized user inputs to generate a suite of visualizations covering weather forecasts, daily routines, and personal wellness metrics like cognitive performance and hydration needs.
-
-  <!-- You can replace this with your own screenshot -->
+MoveGuiderAI is an interactive web application that helps knowledge workers compare and adapt to new cities. It goes beyond simple weather forecasts by simulating how your personal daily routine and wellness metrics shift across different environmental and time-zone contexts.
 
 ---
 
 ## ✨ Features
 
+*   **Multi-city Gantt Planner**: **(NEW)** Input your daily routine (work, fitness, breaks) and instantly see it visualized on a Gantt chart, automatically time-shifted to the local hours of two different cities.
+*   **Save & Load User Profiles**: **(NEW)** Create and save multiple personal profiles, each with unique settings (weight, sleep schedule) and daily routines. Easily switch between them to test different scenarios.
 *   **Comparative Weather Analysis**: View 7-day hourly forecasts for Temperature, Humidity, and UV Index for two cities overlaid on a single, time-normalized chart.
-*   **Dynamic Daylight Highlighting**: Automatically visualizes the daylight hours (sunrise to sunset) for the primary city, providing context for the environmental data.
-*   **Personalized Energy Curve**: Models your unique cognitive performance throughout the day based on your sleep schedule (circadian rhythm).
-*   **Comparative Hydration Timeline**: Calculates and visualizes your personalized hourly water intake needs for both cities, factoring in temperature, humidity, and your body weight.
-*   **Polar Comfort Wheel**: A multi-metric radar chart that compares current environmental conditions in both cities against ideal comfort ranges for well-being.
-*   **Robust & Resilient Data Pipeline**: Utilizes the reliable Nominatim API for geocoding and WeatherAPI.com for forecast data, ensuring high availability and uptime.
+*   **Personalized Energy Curve**: Models your unique cognitive performance throughout the day based on your sleep schedule.
+*   **Comparative Hydration Timeline**: Calculates and visualizes your personalized hourly water intake needs for both cities.
+*   **Polar Comfort Wheel**: A radar chart that compares environmental conditions in both cities against ideal comfort ranges.
 
 ---
 
@@ -38,12 +36,18 @@ MoveGuiderAI is built with a modular and scalable Python architecture designed f
 
 The project is structured with a clear separation of concerns, making it easy to maintain and debug:
 
-*   `app.py`: The main Streamlit application. It handles UI layout, state management (`st.session_state`), and orchestrates calls to the logic and plotting modules.
-*   `api_clients.py`: Contains all functions responsible for communicating with external APIs (Nominatim, WeatherAPI). This isolates external dependencies.
-*   `logic.py`: The "brains" of the application. This module contains all business logic, data processing, and modeling functions (e.g., parsing API responses, calculating hydration needs, modeling the energy curve).
-*   `plotting.py`: Contains all data visualization functions. Each function takes a clean Pandas DataFrame as input and returns a Plotly Figure object, completely decoupling charting from data logic.
-*   `config.py`: Loads and provides access to configuration and secret keys from the `.env` file.
-*   `.env`: A local, untracked file for storing secret API keys.
+* `app.py`: The main Streamlit application. It handles UI layout, state management (`st.session_state`), and orchestrates calls to the logic and plotting modules.
+* `api_clients.py`: Contains all functions responsible for communicating with external APIs (Nominatim, WeatherAPI).
+* `logic/`: A package containing all business logic, data processing, and modeling modules.
+  * `weather_parser.py`: Parses raw API data into clean DataFrames.
+  * `performance.py`: Models the user's energy curve.
+  * `hydration.py`: Calculates personalized hydration needs.
+  * `planner.py`: Handles daily routine logic, data unification, and recommendations.
+  * `user_profiles.py`: Manages loading and saving of user profiles and routines.
+  * `utils.py`: Contains common utility functions (e.g., timezone conversions).
+* `plotting/`: A package containing all data visualization functions. Each module returns a Plotly Figure object.
+* `data/`: Contains data files, such as the `user_profiles.json` for storing user settings.
+* `config.py`: Loads and provides access to configuration and secret keys from the `.env` file.
 
 ---
 

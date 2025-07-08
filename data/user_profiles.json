@@ -1,0 +1,17 @@
+{
+    "Default Profile": {
+        "user_settings": {
+            "weight_kg": 75,
+            "wake_time": "06:00",
+            "sleep_time": "22:30",
+            "chronotype": "Default"
+        },
+        "routine": [
+            { "task": "Morning Deep Work", "start": "08:00", "end": "10:00", "type": "work" },
+            { "task": "Team Standup", "start": "10:00", "end": "10:30", "type": "meetings" },
+            { "task": "Lunch & Walk", "start": "12:30", "end": "13:30", "type": "break" },
+            { "task": "Afternoon Tasks", "start": "13:30", "end": "17:00", "type": "work" },
+            { "task": "Workout", "start": "17:30", "end": "18:30", "type": "fitness" }
+        ]
+    }
+}
