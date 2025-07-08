@@ -3,9 +3,14 @@ import plotly.figure_factory as ff
 import pandas as pd
 
 
-def plot_gantt_schedule(gantt_df: pd.DataFrame, city1_name: str, city2_name: str):
+def plot_gantt_schedule(
+    gantt_df: pd.DataFrame,
+    city1_name: str,
+    city2_name: str,
+    background_shapes: list | None = None,
+):
     """
-    Creates an interactive Gantt chart from the time-shifted routine data.
+    Creates an interactive Gantt chart with environmental background highlights.
     """
     if gantt_df.empty:
         return None  # Return None if there's no data to plot
@@ -23,20 +28,27 @@ def plot_gantt_schedule(gantt_df: pd.DataFrame, city1_name: str, city2_name: str
         index_col="Resource",
         show_colorbar=True,
         group_tasks=True,
-        title="Your Daily Routine: Time-Shifted View",
+        title="Your Daily Routine: Environmentally-Aware Timeline",
     )
 
     # Improve layout
-    fig.update_layout(
-        xaxis_title="Time of Day (Local Time for Each City)",
-        yaxis_title="Tasks",
-        xaxis=dict(
-            type="date",
-            tickformat="%I:%M %p",  # Format as 12-hour time with AM/PM
-            rangebreaks=[
+    layout_updates = {
+        "xaxis_title": "Time of Day (Local Time for Each City)",
+        "yaxis_title": "Tasks",
+        "xaxis": {
+            "type": "date",
+            "tickformat": "%I:%M %p",  # Format as 12-hour time with AM/PM
+            "rangebreaks": [
                 dict(bounds=[23, 6], pattern="hour"),  # Hide overnight hours
             ],
-        ),
-    )
+            "showgrid": True,
+            "gridcolor": "rgba(0,0,0,0.1)",
+            "gridwidth": 1,
+            "dtick": 3600000,
+        },
+    }
+    if background_shapes:
+        layout_updates["shapes"] = background_shapes
+    fig.update_layout(**layout_updates)
 
     return fig
