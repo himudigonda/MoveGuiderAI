@@ -20,7 +20,9 @@ from logic.hydration import calculate_hydration_needs
 from logic.user_profiles import load_profiles, get_profile_names, save_profile
 
 from plotting.line_charts import plot_combined_metric
-from plotting.area_charts import plot_energy_curve, plot_hydration_timeline
+
+# --- UPDATED IMPORTS ---
+from plotting.area_charts import plot_energy_curve, plot_combined_hydration
 from plotting.radar_charts import plot_comfort_wheel
 from plotting.gantt import plot_gantt_schedule
 
@@ -147,30 +149,31 @@ if st.button("Generate Comparison", type="primary"):
 if "df1" in st.session_state:
     df1, df2 = st.session_state["df1"], st.session_state["df2"]
     c1_name, c2_name = st.session_state["city1"], st.session_state["city2"]
+
     current_settings = st.session_state.active_profile.get("user_settings", {})
     user_weight_kg = current_settings.get("weight_kg", 75)
     wake_time = get_time_from_str(current_settings.get("wake_time"), time(6, 0))
     sleep_time = get_time_from_str(current_settings.get("sleep_time"), time(22, 30))
     user_routine = st.session_state.active_profile.get("routine", [])
 
-    # --- GANTT CHART SECTION (ENHANCED) ---
-    st.header("\U0001f4c5 Daily Routine Planner")
+    st.header("🗓️ Daily Routine Planner")
     gantt_df = build_gantt_df(user_routine, df1, c1_name, df2, c2_name)
-    gantt_col1, gantt_col2 = st.columns(2)
-    with gantt_col1:
-        st.markdown(f"**Timeline for {c1_name.split(',')[0]}**")
-        df1_gantt = gantt_df[gantt_df["Resource"] == c1_name.split(",")[0]]
-        bg_shapes1 = get_gantt_background_annotations(df1)
-        gantt_fig1 = plot_gantt_schedule(df1_gantt, c1_name, c2_name, bg_shapes1)
-        if gantt_fig1:
-            st.plotly_chart(gantt_fig1, use_container_width=True)
-    with gantt_col2:
-        st.markdown(f"**Timeline for {c2_name.split(',')[0]}**")
-        df2_gantt = gantt_df[gantt_df["Resource"] == c2_name.split(",")[0]]
-        bg_shapes2 = get_gantt_background_annotations(df2)
-        gantt_fig2 = plot_gantt_schedule(df2_gantt, c1_name, c2_name, bg_shapes2)
-        if gantt_fig2:
-            st.plotly_chart(gantt_fig2, use_container_width=True)
+
+    # --- UPDATED: Full-width Gantt charts in separate rows ---
+    st.markdown(f"**Timeline for {c1_name.split(',')[0]}**")
+    df1_gantt = gantt_df[gantt_df["Resource"] == c1_name.split(",")[0]]
+    bg_shapes1 = get_gantt_background_annotations(df1)
+    gantt_fig1 = plot_gantt_schedule(df1_gantt, c1_name, c2_name, bg_shapes1)
+    if gantt_fig1:
+        st.plotly_chart(gantt_fig1, use_container_width=True)
+
+    st.markdown(f"**Timeline for {c2_name.split(',')[0]}**")
+    df2_gantt = gantt_df[gantt_df["Resource"] == c2_name.split(",")[0]]
+    bg_shapes2 = get_gantt_background_annotations(df2)
+    gantt_fig2 = plot_gantt_schedule(df2_gantt, c1_name, c2_name, bg_shapes2)
+    if gantt_fig2:
+        st.plotly_chart(gantt_fig2, use_container_width=True)
+
     st.markdown(
         """
         <span style="background-color: rgba(119, 221, 119, 0.2); padding: 2px 6px; border-radius: 4px;">Green Zones</span>: Optimal comfort (Temp 18-25°C, Low UV). Ideal for walks and outdoor breaks.  
@@ -181,7 +184,7 @@ if "df1" in st.session_state:
     )
 
     # --- NEW: WORKOUT RECOMMENDER SECTION ---
-    with st.expander("\U0001f3cb\ufe0f Find the Best Workout Times", expanded=True):
+    with st.expander("🏋️‍♀️ Find the Best Workout Times", expanded=True):
         workout_duration = st.number_input(
             "Desired workout duration (minutes)",
             min_value=15,
@@ -198,19 +201,11 @@ if "df1" in st.session_state:
             if recommendations1:
                 for i, rec in enumerate(recommendations1):
                     emoji = (
-                        "\U0001f3c6"
-                        if i == 0
-                        else (
-                            "\U0001f948"
-                            if i == 1
-                            else "\U0001f949" if i == 2 else "\u2705"
-                        )
+                        "🏆" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "✅"
                     )
                     st.markdown(
                         f"{emoji} **{rec['start_time'].strftime('%a, %I:%M %p')}** ({rec['details']})"
                     )
-            else:
-                st.write("No ideal slots found. Your schedule might be too busy.")
         with rec_col2:
             st.subheader(f"For {c2_name.split(',')[0]}")
             recommendations2 = find_optimal_workout_slots(
@@ -219,21 +214,32 @@ if "df1" in st.session_state:
             if recommendations2:
                 for i, rec in enumerate(recommendations2):
                     emoji = (
-                        "\U0001f3c6"
-                        if i == 0
-                        else (
-                            "\U0001f948"
-                            if i == 1
-                            else "\U0001f949" if i == 2 else "\u2705"
-                        )
+                        "🏆" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "✅"
                     )
                     st.markdown(
                         f"{emoji} **{rec['start_time'].strftime('%a, %I:%M %p')}** ({rec['details']})"
                     )
-            else:
-                st.write("No ideal slots found. Your schedule might be too busy.")
 
-    # --- Existing Chart Sections (now driven by profile data) ---
+    st.header("\U0001f9d8 Personalized Productivity & Wellness")
+    st.plotly_chart(
+        plot_energy_curve(model_energy_curve(wake_time, sleep_time)),
+        use_container_width=True,
+    )
+
+    # --- UPDATED: Hydration and Comfort Wheel plotting ---
+    hydration_df1 = calculate_hydration_needs(df1, user_weight_kg)
+    hydration_df2 = calculate_hydration_needs(df2, user_weight_kg)
+    st.plotly_chart(
+        plot_combined_hydration(hydration_df1, c1_name, hydration_df2, c2_name),
+        use_container_width=True,
+    )
+
+    comfort_df = prepare_comfort_wheel_data(df1, c1_name, df2, c2_name)
+    st.plotly_chart(
+        plot_comfort_wheel(comfort_df, c1_name, c2_name), use_container_width=True
+    )
+
+    # (Environmental Comparison line charts section is now last)
     st.header("\U0001f327️ Environmental Comparison")
     annotations = get_plot_annotations(df1, c1_name, df2, c2_name)
     temp_df = create_unified_df(df1, c1_name, df2, c2_name, "Temperature (°C)")
@@ -243,36 +249,13 @@ if "df1" in st.session_state:
         ),
         use_container_width=True,
     )
-
     hum_df = create_unified_df(df1, c1_name, df2, c2_name, "Humidity (%)")
     st.plotly_chart(
         plot_combined_metric(hum_df, "Humidity (%)", c1_name, c2_name, annotations),
         use_container_width=True,
     )
-
     uv_df = create_unified_df(df1, c1_name, df2, c2_name, "UV Index")
     st.plotly_chart(
         plot_combined_metric(uv_df, "UV Index", c1_name, c2_name, annotations),
         use_container_width=True,
-    )
-
-    st.header("\U0001f9d8 Personalized Productivity & Wellness")
-    energy_df = model_energy_curve(wake_time, sleep_time)
-    st.plotly_chart(plot_energy_curve(energy_df), use_container_width=True)
-
-    col_hydro1, col_hydro2 = st.columns(2)
-    with col_hydro1:
-        hydration_df1 = calculate_hydration_needs(df1, user_weight_kg)
-        st.plotly_chart(
-            plot_hydration_timeline(hydration_df1, c1_name), use_container_width=True
-        )
-    with col_hydro2:
-        hydration_df2 = calculate_hydration_needs(df2, user_weight_kg)
-        st.plotly_chart(
-            plot_hydration_timeline(hydration_df2, c2_name), use_container_width=True
-        )
-
-    comfort_df = prepare_comfort_wheel_data(df1, c1_name, df2, c2_name)
-    st.plotly_chart(
-        plot_comfort_wheel(comfort_df, c1_name, c2_name), use_container_width=True
     )

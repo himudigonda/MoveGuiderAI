@@ -6,7 +6,7 @@ import pandas as pd
 def plot_comfort_wheel(df: pd.DataFrame, city1_name: str, city2_name: str):
     """
     Creates a radar chart comparing two cities against an ideal range.
-    (Moved from plotting.py)
+    (UPDATED with higher transparency)
     """
     fig = go.Figure()
     ideal_df = (
@@ -18,19 +18,19 @@ def plot_comfort_wheel(df: pd.DataFrame, city1_name: str, city2_name: str):
     metric_order = ideal_df["Metric"]
     fig.add_trace(
         go.Scatterpolar(
-            r=list(ideal_df["max"])
-            + list(ideal_df["max"])[:1],  # stylistic: closes loop with first value
+            r=list(ideal_df["max"]) + list(ideal_df["max"])[:1],
             theta=list(ideal_df["Metric"]) + list(ideal_df["Metric"])[:1],
             fill="toself",
-            fillcolor="rgba(44, 160, 44, 0.2)",
+            fillcolor="rgba(44, 160, 44, 0.2)",  # Ideal range remains the same
             line=dict(color="rgba(44, 160, 44, 0.4)"),
             name="Ideal Range",
         )
     )
 
+    # --- UPDATED: Reduced opacity for better overlap visibility ---
     city_plot_config = {
-        city1_name: {"color": "red", "fill": "rgba(255, 87, 87, 0.4)"},
-        city2_name: {"color": "green", "fill": "rgba(0, 128, 0, 0.4)"},
+        city1_name: {"color": "red", "fill": "rgba(255, 87, 87, 0.3)"},  # Was 0.4
+        city2_name: {"color": "green", "fill": "rgba(0, 128, 0, 0.3)"},  # Was 0.4
     }
 
     for city, config in city_plot_config.items():
@@ -55,5 +55,8 @@ def plot_comfort_wheel(df: pd.DataFrame, city1_name: str, city2_name: str):
         showlegend=True,
         title=f"Polar Comfort Wheel: {city1_name.split(',')[0]} (Red) vs. {city2_name.split(',')[0]} (Green)",
         height=500,
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+        ),  # Improved legend position
     )
     return fig
