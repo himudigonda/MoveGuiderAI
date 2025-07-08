@@ -1,26 +1,28 @@
 # app.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime, time
+from datetime import time
+
+# --- REFACTORED IMPORTS ---
 from config import WEATHERAPI_API_KEY
 from api_clients import resolve_latlon_nominatim, get_weather_data_from_weatherapi
-from logic import (
-    parse_weather_data,
+from logic.weather_parser import parse_weather_data
+from logic.planner import (
     create_unified_df,
     get_plot_annotations,
-    model_energy_curve,
-    calculate_hydration_needs,
     prepare_comfort_wheel_data,
 )
-from plotting import (
-    plot_combined_metric,
-    plot_energy_curve,
-    plot_hydration_timeline,
-    plot_comfort_wheel,
-)
+from logic.performance import model_energy_curve
+from logic.hydration import calculate_hydration_needs
+from plotting.line_charts import plot_combined_metric
+from plotting.area_charts import plot_energy_curve, plot_hydration_timeline
+from plotting.radar_charts import plot_comfort_wheel
+
+# Gantt chart imports will be added later
 
 st.set_page_config(page_title="MoveGuiderAI", layout="wide")
 
+# --- UI and Logic remain the same for now ---
 with st.sidebar:
     st.header("\U0001f464 User Profile")
     user_weight_kg = st.number_input(
@@ -70,53 +72,49 @@ if st.button("Compare Cities", type="primary"):
         st.session_state["energy_df"] = model_energy_curve(wake_time, sleep_time)
 
 if "df1" in st.session_state:
-    # Load all data from session state first
-    df1 = st.session_state["df1"]
-    df2 = st.session_state["df2"]
-    c1_name = st.session_state["city1"]
-    c2_name = st.session_state["city2"]
+    df1, df2 = st.session_state["df1"], st.session_state["df2"]
+    c1_name, c2_name = st.session_state["city1"], st.session_state["city2"]
     energy_df = st.session_state["energy_df"]
 
-    # --- Weather Comparison Charts (as before) ---
     annotations = get_plot_annotations(df1, c1_name, df2, c2_name)
 
     st.header("\U0001f327️ Environmental Comparison")
     temp_df = create_unified_df(df1, c1_name, df2, c2_name, "Temperature (°C)")
-    temp_fig = plot_combined_metric(
-        temp_df, "Temperature (°C)", c1_name, c2_name, annotations
+    st.plotly_chart(
+        plot_combined_metric(
+            temp_df, "Temperature (°C)", c1_name, c2_name, annotations
+        ),
+        use_container_width=True,
     )
-    st.plotly_chart(temp_fig, use_container_width=True)
 
     hum_df = create_unified_df(df1, c1_name, df2, c2_name, "Humidity (%)")
-    hum_fig = plot_combined_metric(
-        hum_df, "Humidity (%)", c1_name, c2_name, annotations
+    st.plotly_chart(
+        plot_combined_metric(hum_df, "Humidity (%)", c1_name, c2_name, annotations),
+        use_container_width=True,
     )
-    st.plotly_chart(hum_fig, use_container_width=True)
 
     uv_df = create_unified_df(df1, c1_name, df2, c2_name, "UV Index")
-    uv_fig = plot_combined_metric(uv_df, "UV Index", c1_name, c2_name, annotations)
-    st.plotly_chart(uv_fig, use_container_width=True)
+    st.plotly_chart(
+        plot_combined_metric(uv_df, "UV Index", c1_name, c2_name, annotations),
+        use_container_width=True,
+    )
 
-    # --- Personalized Metrics Header ---
     st.header("\U0001f9d8 Personalized Productivity & Wellness")
+    st.plotly_chart(plot_energy_curve(energy_df), use_container_width=True)
 
-    # --- Row 1: Full-Width Energy Curve ---
-    energy_fig = plot_energy_curve(energy_df)
-    st.plotly_chart(energy_fig, use_container_width=True)
-
-    # --- Row 2: Side-by-Side Hydration ---
     col_hydro1, col_hydro2 = st.columns(2)
     with col_hydro1:
         hydration_df1 = calculate_hydration_needs(df1, user_weight_kg)
-        hydration_fig1 = plot_hydration_timeline(hydration_df1, c1_name)
-        st.plotly_chart(hydration_fig1, use_container_width=True)
-
+        st.plotly_chart(
+            plot_hydration_timeline(hydration_df1, c1_name), use_container_width=True
+        )
     with col_hydro2:
         hydration_df2 = calculate_hydration_needs(df2, user_weight_kg)
-        hydration_fig2 = plot_hydration_timeline(hydration_df2, c2_name)
-        st.plotly_chart(hydration_fig2, use_container_width=True)
+        st.plotly_chart(
+            plot_hydration_timeline(hydration_df2, c2_name), use_container_width=True
+        )
 
-    # --- Row 3: Full-Width Dual Comfort Wheel ---
     comfort_df = prepare_comfort_wheel_data(df1, c1_name, df2, c2_name)
-    comfort_fig = plot_comfort_wheel(comfort_df, c1_name, c2_name)
-    st.plotly_chart(comfort_fig, use_container_width=True)
+    st.plotly_chart(
+        plot_comfort_wheel(comfort_df, c1_name, c2_name), use_container_width=True
+    )
