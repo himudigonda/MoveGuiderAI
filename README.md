@@ -1,21 +1,19 @@
 # MoveGuiderAI 🏙️
 
-**A comparative analytics dashboard for personal productivity and environmental metrics.**
+**A relocation intelligence platform for remote professionals.**
 
-MoveGuiderAI is an interactive web application built with Streamlit that helps users, particularly remote workers, compare two cities side-by-side. It fetches real-time environmental data and combines it with personalized user inputs to generate a suite of visualizations covering weather forecasts, daily routines, and personal wellness metrics like cognitive performance and hydration needs.
-
-  <!-- You can replace this with your own screenshot -->
+MoveGuiderAI is an interactive web application that helps knowledge workers compare and adapt to new cities. It goes beyond simple weather forecasts by simulating how your personal daily routine and wellness metrics shift across different environmental and time-zone contexts.
 
 ---
 
 ## ✨ Features
 
+*   **Multi-city Gantt Planner**: **(NEW)** Input your daily routine (work, fitness, breaks) and instantly see it visualized on a Gantt chart, automatically time-shifted to the local hours of two different cities.
+*   **Save & Load User Profiles**: **(NEW)** Create and save multiple personal profiles, each with unique settings (weight, sleep schedule) and daily routines. Easily switch between them to test different scenarios.
 *   **Comparative Weather Analysis**: View 7-day hourly forecasts for Temperature, Humidity, and UV Index for two cities overlaid on a single, time-normalized chart.
-*   **Dynamic Daylight Highlighting**: Automatically visualizes the daylight hours (sunrise to sunset) for the primary city, providing context for the environmental data.
-*   **Personalized Energy Curve**: Models your unique cognitive performance throughout the day based on your sleep schedule (circadian rhythm).
-*   **Comparative Hydration Timeline**: Calculates and visualizes your personalized hourly water intake needs for both cities, factoring in temperature, humidity, and your body weight.
-*   **Polar Comfort Wheel**: A multi-metric radar chart that compares current environmental conditions in both cities against ideal comfort ranges for well-being.
-*   **Robust & Resilient Data Pipeline**: Utilizes the reliable Nominatim API for geocoding and WeatherAPI.com for forecast data, ensuring high availability and uptime.
+*   **Personalized Energy Curve**: Models your unique cognitive performance throughout the day based on your sleep schedule.
+*   **Comparative Hydration Timeline**: Calculates and visualizes your personalized hourly water intake needs for both cities.
+*   **Polar Comfort Wheel**: A radar chart that compares environmental conditions in both cities against ideal comfort ranges.
 
 ---
 

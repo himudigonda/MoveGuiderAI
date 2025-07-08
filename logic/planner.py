@@ -1,6 +1,7 @@
 # logic/planner.py
 import pandas as pd
 import pytz
+from datetime import datetime, date
 from logic.utils import to_az_hour  # We will create this helper function
 
 
@@ -164,3 +165,63 @@ def prepare_comfort_wheel_data(
         )
 
     return pd.DataFrame(all_data)
+
+
+def build_gantt_df(
+    user_routine: list,
+    city1_df: pd.DataFrame,
+    city1_name: str,
+    city2_df: pd.DataFrame,
+    city2_name: str,
+) -> pd.DataFrame:
+    """
+    Creates a DataFrame for the Gantt chart, showing the user's routine
+    time-shifted for two different cities.
+    """
+    gantt_data = []
+    home_tz = pytz.timezone("America/Phoenix")
+
+    # Get the local timezone from the weather data's index
+    tz1 = city1_df.index.tz
+    tz2 = city2_df.index.tz
+
+    # Use today's date as a reference to create datetime objects
+    today = date.today()
+
+    for task_item in user_routine:
+        # Combine date and time string to create a naive datetime
+        start_time_naive = datetime.strptime(task_item["start"], "%H:%M").time()
+        end_time_naive = datetime.strptime(task_item["end"], "%H:%M").time()
+
+        # Create timezone-aware datetime objects in the user's "home" timezone (AZ)
+        start_home_aware = home_tz.localize(datetime.combine(today, start_time_naive))
+        end_home_aware = home_tz.localize(datetime.combine(today, end_time_naive))
+
+        # --- Time-shift for City 1 ---
+        start_city1 = start_home_aware.astimezone(tz1)
+        end_city1 = end_home_aware.astimezone(tz1)
+        gantt_data.append(
+            dict(
+                Task=task_item["task"],
+                Start=start_city1,
+                Finish=end_city1,
+                Resource=city1_name.split(",")[0],
+            )
+        )
+
+        # --- Time-shift for City 2 ---
+        start_city2 = start_home_aware.astimezone(tz2)
+        end_city2 = end_home_aware.astimezone(tz2)
+        gantt_data.append(
+            dict(
+                Task=task_item["task"],
+                Start=start_city2,
+                Finish=end_city2,
+                Resource=city2_name.split(",")[0],
+            )
+        )
+
+    if not gantt_data:
+        return pd.DataFrame()
+
+    return pd.DataFrame(gantt_data)
