@@ -126,6 +126,78 @@ def get_city_data(city_name: str):
     return parse_weather_data(weather_data)
 
 
+# --- Move Checklist Generator ---
+def generate_move_checklist(city1, city2, plan_mode, sim_month, user_profile):
+    """
+    Generates a personalized move checklist based on cities, planning mode, month, and user profile.
+    """
+    checklist = []
+    # General items
+    checklist.append(
+        f"✅ Research cost of living and housing in both {city1.split(',')[0]} and {city2.split(',')[0]}"
+    )
+    checklist.append(
+        f"✅ Check visa/work permit requirements if moving internationally"
+    )
+    checklist.append(
+        f"✅ Set up mail forwarding and update your address with banks, subscriptions, etc."
+    )
+    checklist.append(
+        f"✅ Arrange for internet and utilities setup at your new location"
+    )
+    checklist.append(f"✅ Back up important digital files and documents")
+    checklist.append(
+        f"✅ Notify your employer/team of your move and update your working hours if needed"
+    )
+
+    # Weather/seasonal items
+    if plan_mode == "Seasonal Simulation" and sim_month:
+        checklist.append(
+            f"✅ Review typical weather for {sim_month} in both cities (see above charts)"
+        )
+        checklist.append(
+            f"✅ Pack clothing suitable for {sim_month} conditions in {city2.split(',')[0]}"
+        )
+        checklist.append(
+            f"✅ Prepare for local climate: e.g., {'high humidity' if 'Humidity' in user_profile.get('user_settings', {}).get('chronotype', '') else 'heat/UV'} in {sim_month}"
+        )
+    else:
+        checklist.append(
+            f"✅ Check 7-day weather forecast for both cities (see above charts)"
+        )
+        checklist.append(
+            f"✅ Pack for current weather conditions in {city2.split(',')[0]}"
+        )
+
+    # Routine/time zone items
+    wake = user_profile.get("user_settings", {}).get("wake_time", "07:00")
+    sleep = user_profile.get("user_settings", {}).get("sleep_time", "22:00")
+    checklist.append(
+        f"✅ Adjust your daily routine: wake at {wake}, sleep at {sleep} (local time)"
+    )
+    checklist.append(f"✅ Update calendar events and reminders to new time zone")
+    checklist.append(
+        f"✅ Plan for best workout times based on local weather (see recommendations above)"
+    )
+
+    # Health & wellness
+    checklist.append(
+        f"✅ Review hydration needs for your new city (see Hydration Timeline)"
+    )
+    checklist.append(
+        f"✅ Prepare for changes in sunlight hours (see Gantt/energy charts)"
+    )
+    checklist.append(f"✅ Set up a new healthcare provider if needed")
+
+    # Remote work
+    checklist.append(
+        f"✅ Test your remote work setup (Wi-Fi, VPN, video calls) in the new location"
+    )
+    checklist.append(f"✅ Research local coworking spaces or cafes if needed")
+
+    return checklist
+
+
 # --- Main App Body ---
 st.title("MoveGuiderAI 🏙️")
 st.markdown("A relocation intelligence platform for remote professionals.")
@@ -262,3 +334,20 @@ if "df1" in st.session_state:
         plot_combined_metric(uv_df, "UV Index", c1_name, c2_name, annotations),
         use_container_width=True,
     )
+
+    # --- Move Checklist Generator ---
+    st.header("🗒️ Move Checklist Generator")
+    c1_name = st.session_state["city1"]
+    c2_name = st.session_state["city2"]
+    user_profile = st.session_state.active_profile
+    sim_month = None
+    if st.session_state.get("plan_mode", "7-Day Forecast") == "Seasonal Simulation":
+        sim_month = st.session_state.get("selected_month_name")
+    checklist = generate_move_checklist(
+        c1_name,
+        c2_name,
+        st.session_state.get("plan_mode", "7-Day Forecast"),
+        sim_month,
+        user_profile,
+    )
+    st.markdown("\n".join([f"- {item}" for item in checklist]))
