@@ -1,12 +1,11 @@
 # logic.py
 import pandas as pd
-from typing import Dict, Any
 import pytz
 from datetime import datetime, time, timedelta
 import numpy as np
 
 
-def parse_weather_data(data: Dict[str, Any]) -> pd.DataFrame:
+def parse_weather_data(data: dict) -> pd.DataFrame:
     """
     REVISED: Parses the hourly weather data from the WeatherAPI.com response.
     """
@@ -75,62 +74,155 @@ def parse_weather_data(data: Dict[str, Any]) -> pd.DataFrame:
     return df
 
 
-def create_routine_df(city_df: pd.DataFrame, city_name: str) -> pd.DataFrame:
+# --- NEW: Function to create a unified DataFrame for plotting ---
+def create_unified_df(
+    city1_df: pd.DataFrame,
+    city1_name: str,
+    city2_df: pd.DataFrame,
+    city2_name: str,
+    metric_col: str,
+) -> pd.DataFrame:
     """
-    Generates a DataFrame for the daily routine Gantt chart.
+    Combines data from two city DataFrames into a single, plot-ready DataFrame.
+    Normalizes all times to Arizona Time.
     """
-    # --- Timezone setup ---
-    home_tz_str = "America/Phoenix"
-    home_tz = pytz.timezone(home_tz_str)
+    home_tz = pytz.timezone("America/Phoenix")
 
-    # Get the target city's timezone from the DataFrame's index
-    city_tz = city_df.index.tz
-
-    # Get today's date in the context of the target city
-    today_local = datetime.now(city_tz).date()
-
-    # --- Define tasks ---
-    tasks = []
-
-    # 1. Work Block (9-5 Arizona Time)
-    work_start_home = home_tz.localize(datetime.combine(today_local, time(9, 0)))
-    work_end_home = home_tz.localize(datetime.combine(today_local, time(17, 0)))
-
-    # Convert to the city's local time
-    work_start_local = work_start_home.astimezone(city_tz)
-    work_end_local = work_end_home.astimezone(city_tz)
-
-    tasks.append(
-        dict(
-            Task="Work", Start=work_start_local, Finish=work_end_local, Resource="Work"
+    def process_df(df, city_name):
+        processed_df = df.copy()
+        processed_df["City"] = city_name
+        processed_df["Time_AZ"] = processed_df.index.tz_convert(home_tz)
+        processed_df["Hour"] = (
+            processed_df["Time_AZ"].dt.hour + processed_df["Time_AZ"].dt.minute / 60
         )
-    )
+        processed_df["Day"] = processed_df["Time_AZ"].dt.strftime("%a %d")
+        return processed_df[["Hour", metric_col, "City", "Day"]]
 
-    # 2. Meal Times (local to the city)
-    meal_times = [time(8, 0), time(12, 0), time(19, 0)]
-    meal_labels = ["Breakfast", "Lunch", "Dinner"]
-    for meal_time, label in zip(meal_times, meal_labels):
-        start = city_tz.localize(datetime.combine(today_local, meal_time))
-        tasks.append(
+    unified_df = pd.concat(
+        [process_df(city1_df, city1_name), process_df(city2_df, city2_name)]
+    )
+    return unified_df
+
+
+# --- NEW: Function to get all annotations for the plots ---
+def get_plot_annotations(
+    city1_df: pd.DataFrame, city1_name: str, city2_df: pd.DataFrame, city2_name: str
+) -> dict:
+    """
+    Generates the background shading and text annotations for the combined plots.
+    All times are in Arizona Time (0-24 hours).
+    """
+    home_tz = pytz.timezone("America/Phoenix")
+    shapes = [
+        dict(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=9,
+            y0=0,
+            x1=17,
+            y1=1,
+            fillcolor="rgba(255, 87, 87, 0.2)",
+            layer="below",
+            line_width=0,
+        ),
+        dict(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=6,
+            y0=0,
+            x1=8,
+            y1=1,
+            fillcolor="rgba(44, 160, 44, 0.2)",
+            layer="below",
+            line_width=0,
+        ),
+        dict(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=8,
+            y0=0,
+            x1=9,
+            y1=1,
+            fillcolor="rgba(255, 159, 64, 0.2)",
+            layer="below",
+            line_width=0,
+        ),
+        dict(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=12,
+            y0=0,
+            x1=13,
+            y1=1,
+            fillcolor="rgba(255, 159, 64, 0.2)",
+            layer="below",
+            line_width=0,
+        ),
+        dict(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=19,
+            y0=0,
+            x1=20,
+            y1=1,
+            fillcolor="rgba(255, 159, 64, 0.2)",
+            layer="below",
+            line_width=0,
+        ),
+    ]
+    text_annotations = []
+
+    def to_az_hour(dt_aware):
+        return (
+            dt_aware.astimezone(home_tz).hour + dt_aware.astimezone(home_tz).minute / 60
+        )
+
+    sun_times = [
+        {
+            "city": city1_name,
+            "char": "T",
+            "color": "red",
+            "sunrise": city1_df["sunrise"].iloc[0],
+            "sunset": city1_df["sunset"].iloc[0],
+        },
+        {
+            "city": city2_name,
+            "char": "D",
+            "color": "green",
+            "sunrise": city2_df["sunrise"].iloc[0],
+            "sunset": city2_df["sunset"].iloc[0],
+        },
+    ]
+    for item in sun_times:
+        text_annotations.append(
             dict(
-                Task=label,
-                Start=start,
-                Finish=start + timedelta(hours=1),
-                Resource="Personal",
+                x=to_az_hour(item["sunrise"]),
+                y=-0.1,
+                xref="x",
+                yref="paper",
+                text=f"^{item['char']}",
+                showarrow=False,
+                font=dict(color=item["color"], size=14),
+            )
+        )
+        text_annotations.append(
+            dict(
+                x=to_az_hour(item["sunset"]),
+                y=-0.1,
+                xref="x",
+                yref="paper",
+                text=f"v{item['char']}",
+                showarrow=False,
+                font=dict(color=item["color"], size=14),
             )
         )
 
-    # 3. Workout Window (based on local sunrise)
-    sunrise_local = city_df["sunrise"].iloc[0]  # Get today's sunrise
-    workout_start = sunrise_local + timedelta(minutes=15)
-    workout_end = sunrise_local + timedelta(minutes=90)
-    tasks.append(
-        dict(Task="Workout", Start=workout_start, Finish=workout_end, Resource="Health")
-    )
-
-    # Create DataFrame
-    routine_df = pd.DataFrame(tasks)
-    return routine_df
+    return {"shapes": shapes, "annotations": text_annotations}
 
 
 def model_energy_curve(wake_time: time, sleep_time: time) -> pd.DataFrame:

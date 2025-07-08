@@ -10,4 +10,5 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "requests>=2.32.4",
     "streamlit>=1.46.1",
+    "webcolors>=24.11.1",
 ]
