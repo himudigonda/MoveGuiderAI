@@ -1,8 +1,13 @@
 # logic/planner.py
 import pandas as pd
 import pytz
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time, timedelta
+from typing import List, Dict, Any
+
 from logic.utils import to_az_hour  # We will create this helper function
+
+# --- A constant to normalize all daily tasks to a single reference date ---
+REFERENCE_DATE = date(2024, 1, 1)
 
 
 def create_unified_df(
@@ -167,6 +172,18 @@ def prepare_comfort_wheel_data(
     return pd.DataFrame(all_data)
 
 
+def _ensure_datetime_index(df):
+    idx = df.index
+    if not isinstance(idx, pd.DatetimeIndex):
+        try:
+            idx = pd.to_datetime(idx)
+        except Exception:
+            raise ValueError(
+                "DataFrame index must be or convertible to DatetimeIndex for time-based plotting."
+            )
+    return idx
+
+
 def build_gantt_df(
     user_routine: list,
     city1_df: pd.DataFrame,
@@ -175,88 +192,114 @@ def build_gantt_df(
     city2_name: str,
 ) -> pd.DataFrame:
     """
-    Creates a DataFrame for the Gantt chart, showing the user's routine
-    time-shifted for two different cities.
+    REFACTORED: Creates a DataFrame for a 24-HOUR Gantt chart.
+    All tasks are normalized to a single reference date for a "typical day" view.
     """
     gantt_data = []
     home_tz = pytz.timezone("America/Phoenix")
 
-    # Get the local timezone from the weather data's index
-    tz1 = city1_df.index.tz
-    tz2 = city2_df.index.tz
-
-    # Use today's date as a reference to create datetime objects
-    today = date.today()
+    city1_dtidx = _ensure_datetime_index(city1_df)
+    city2_dtidx = _ensure_datetime_index(city2_df)
+    tz1 = (
+        city1_dtidx.tz
+        if hasattr(city1_dtidx, "tz") and city1_dtidx.tz is not None
+        else None
+    )
+    tz2 = (
+        city2_dtidx.tz
+        if hasattr(city2_dtidx, "tz") and city2_dtidx.tz is not None
+        else None
+    )
+    if tz1 is None:
+        tz1 = city1_dtidx[0].tzinfo if hasattr(city1_dtidx[0], "tzinfo") else None
+    if tz2 is None:
+        tz2 = city2_dtidx[0].tzinfo if hasattr(city2_dtidx[0], "tzinfo") else None
 
     for task_item in user_routine:
-        # Combine date and time string to create a naive datetime
-        start_time_naive = datetime.strptime(task_item["start"], "%H:%M").time()
-        end_time_naive = datetime.strptime(task_item["end"], "%H:%M").time()
+        try:
+            start_time_naive = datetime.strptime(task_item["start"], "%H:%M").time()
+            end_time_naive = datetime.strptime(task_item["end"], "%H:%M").time()
 
-        # Create timezone-aware datetime objects in the user's "home" timezone (AZ)
-        start_home_aware = home_tz.localize(datetime.combine(today, start_time_naive))
-        end_home_aware = home_tz.localize(datetime.combine(today, end_time_naive))
-
-        # --- Time-shift for City 1 ---
-        start_city1 = start_home_aware.astimezone(tz1)
-        end_city1 = end_home_aware.astimezone(tz1)
-        gantt_data.append(
-            dict(
-                Task=task_item["task"],
-                Start=start_city1,
-                Finish=end_city1,
-                Resource=city1_name.split(",")[0],
+            start_home_aware = home_tz.localize(
+                datetime.combine(REFERENCE_DATE, start_time_naive)
             )
-        )
-
-        # --- Time-shift for City 2 ---
-        start_city2 = start_home_aware.astimezone(tz2)
-        end_city2 = end_home_aware.astimezone(tz2)
-        gantt_data.append(
-            dict(
-                Task=task_item["task"],
-                Start=start_city2,
-                Finish=end_city2,
-                Resource=city2_name.split(",")[0],
+            end_home_aware = home_tz.localize(
+                datetime.combine(REFERENCE_DATE, end_time_naive)
             )
-        )
 
-    if not gantt_data:
-        return pd.DataFrame()
+            # Time-shift for City 1 and replace date with REFERENCE_DATE
+            start_city1 = start_home_aware.astimezone(tz1) if tz1 else start_home_aware
+            start_city1 = start_city1.replace(
+                year=REFERENCE_DATE.year,
+                month=REFERENCE_DATE.month,
+                day=REFERENCE_DATE.day,
+            )
+            end_city1 = end_home_aware.astimezone(tz1) if tz1 else end_home_aware
+            end_city1 = end_city1.replace(
+                year=REFERENCE_DATE.year,
+                month=REFERENCE_DATE.month,
+                day=REFERENCE_DATE.day,
+            )
+            gantt_data.append(
+                dict(
+                    Task=task_item["task"],
+                    Start=start_city1,
+                    Finish=end_city1,
+                    Resource=city1_name.split(",")[0],
+                )
+            )
 
-    return pd.DataFrame(gantt_data)
+            # Time-shift for City 2 and replace date with REFERENCE_DATE
+            start_city2 = start_home_aware.astimezone(tz2) if tz2 else start_home_aware
+            start_city2 = start_city2.replace(
+                year=REFERENCE_DATE.year,
+                month=REFERENCE_DATE.month,
+                day=REFERENCE_DATE.day,
+            )
+            end_city2 = end_home_aware.astimezone(tz2) if tz2 else end_home_aware
+            end_city2 = end_city2.replace(
+                year=REFERENCE_DATE.year,
+                month=REFERENCE_DATE.month,
+                day=REFERENCE_DATE.day,
+            )
+            gantt_data.append(
+                dict(
+                    Task=task_item["task"],
+                    Start=start_city2,
+                    Finish=end_city2,
+                    Resource=city2_name.split(",")[0],
+                )
+            )
+        except (ValueError, TypeError):
+            continue  # Skip malformed routine items
+
+    return pd.DataFrame(gantt_data) if gantt_data else pd.DataFrame()
 
 
-def get_gantt_background_annotations(city_df: pd.DataFrame) -> list:
+def get_gantt_background_annotations(city_df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
-    Scans the forecast to generate background highlights for
-    'Optimal Comfort' (green) and 'High Heat/UV' (red) zones for the Gantt chart.
+    REFACTORED: Scans the FIRST 24 HOURS of the forecast to generate background highlights
+    for a single 24-hour Gantt chart view.
     """
     shapes = []
-    HEAT_TEMP_THRESHOLD = 30
-    HEAT_UV_THRESHOLD = 7
-    COMFORT_TEMP_RANGE = (18, 25)
-    COMFORT_UV_THRESHOLD = 4
-    for idx, row in city_df.iterrows():
-        import pandas as pd
-        from datetime import timedelta, datetime, date
+    dtidx = _ensure_datetime_index(city_df)
+    first_day_df = city_df.iloc[:24]
 
-        # Only try to use idx if it's a datetime/date or string/number
-        if isinstance(idx, (pd.Timestamp, datetime, date)):
-            x0 = idx
-            x1 = idx + timedelta(hours=1)
-        elif isinstance(idx, (str, int, float)):
-            try:
-                x0 = pd.Timestamp(idx)
-                x1 = x0 + timedelta(hours=1)
-            except Exception:
-                continue
-        else:
+    HEAT_TEMP_THRESHOLD, HEAT_UV_THRESHOLD = 30, 7
+    COMFORT_TEMP_RANGE, COMFORT_UV_THRESHOLD = (18, 25), 4
+
+    for local_time, row in first_day_df.iterrows():
+        # local_time is the index, which should be a Timestamp
+        if not isinstance(local_time, pd.Timestamp):
             continue
-        # High Heat/UV Warning Zone (Red)
+        x0 = datetime.combine(REFERENCE_DATE, local_time.time()).replace(
+            tzinfo=local_time.tzinfo
+        )
+        x1 = x0 + timedelta(hours=1)
+
         if (
-            row.get("Temperature (°C)", 0) > HEAT_TEMP_THRESHOLD
-            or row.get("UV Index", 0) > HEAT_UV_THRESHOLD
+            row["Temperature (°C)"] > HEAT_TEMP_THRESHOLD
+            or row["UV Index"] > HEAT_UV_THRESHOLD
         ):
             shapes.append(
                 dict(
@@ -272,12 +315,10 @@ def get_gantt_background_annotations(city_df: pd.DataFrame) -> list:
                     line_width=0,
                 )
             )
-        # Optimal Comfort Zone (Green)
-        if (
-            COMFORT_TEMP_RANGE[0]
-            <= row.get("Temperature (°C)", 0)
-            <= COMFORT_TEMP_RANGE[1]
-        ) and (row.get("UV Index", 0) < COMFORT_UV_THRESHOLD):
+        elif (
+            COMFORT_TEMP_RANGE[0] <= row["Temperature (°C)"] <= COMFORT_TEMP_RANGE[1]
+            and row["UV Index"] < COMFORT_UV_THRESHOLD
+        ):
             shapes.append(
                 dict(
                     type="rect",
@@ -292,78 +333,96 @@ def get_gantt_background_annotations(city_df: pd.DataFrame) -> list:
                     line_width=0,
                 )
             )
+
     return shapes
 
 
-def find_optimal_workout_slots(city_df, user_routine, workout_duration_min, top_n=5):
+def find_daily_best_workout(
+    city_df: pd.DataFrame, user_routine: list, workout_duration_min: int
+) -> List[Dict[str, Any]]:
     """
-    Finds the best time slots for a workout based on weather and free time.
+    NEW LOGIC: Finds the single best workout slot for each of the next 3 days.
     """
-    busy_slots = []
-    home_tz = pytz.timezone("America/Phoenix")
-    city_tz = getattr(city_df.index, "tz", None)
-    today = date.today()
-    for task in user_routine:
-        try:
-            start_home = home_tz.localize(
-                datetime.combine(
-                    today, datetime.strptime(task["start"], "%H:%M").time()
-                )
-            )
-            end_home = home_tz.localize(
-                datetime.combine(today, datetime.strptime(task["end"], "%H:%M").time())
-            )
-            if city_tz:
-                busy_slots.append(
-                    (start_home.astimezone(city_tz), end_home.astimezone(city_tz))
-                )
-        except Exception:
+    daily_bests = []
+    dtidx = _ensure_datetime_index(city_df)
+    if not hasattr(dtidx, "normalize"):
+        raise ValueError(
+            "DataFrame index must be a DatetimeIndex for workout recommendation."
+        )
+    unique_days = dtidx.normalize().unique()
+
+    for day_index, day_date in enumerate(unique_days[:3]):  # Limit to first 3 days
+        # Select rows for this day
+        day_df = city_df[dtidx.normalize() == day_date]
+        if day_df.empty:
             continue
-    possible_slots = []
-    start_time = city_df.index.min()
-    end_time = city_df.index.max()
-    current_time = start_time
-    while current_time + timedelta(minutes=workout_duration_min) <= end_time:
-        workout_window_end = current_time + timedelta(minutes=workout_duration_min)
-        is_free = True
-        for busy_start, busy_end in busy_slots:
-            if (
-                current_time.time() < busy_end.time()
-                and workout_window_end.time() > busy_start.time()
-            ):
-                is_free = False
-                break
-        if is_free:
-            window_df = city_df.loc[current_time:workout_window_end]
-            if not window_df.empty:
-                avg_temp = window_df["Temperature (°C)"].mean()
-                avg_humidity = window_df["Humidity (%)"].mean()
-                max_uv = window_df["UV Index"].max()
-                score = 0
-                score += max(0, avg_temp - 22) * 2
-                score += min(0, avg_temp - 15) * -1
-                score += max(0, avg_humidity - 60) * 0.5
-                score += max_uv * 5
-                sunrise = (
-                    window_df["sunrise"].iloc[0] if "sunrise" in window_df else None
+
+        # Create a list of busy time intervals for the day
+        busy_times = []
+        for task in user_routine:
+            try:
+                busy_times.append(
+                    (
+                        datetime.strptime(task["start"], "%H:%M").time(),
+                        datetime.strptime(task["end"], "%H:%M").time(),
+                    )
                 )
-                sunset = window_df["sunset"].iloc[0] if "sunset" in window_df else None
-                if (
-                    sunrise
-                    and sunset
-                    and current_time >= sunrise
-                    and workout_window_end <= sunset
-                ):
-                    score -= 10
-                else:
-                    score += 5
-                possible_slots.append(
-                    {
-                        "start_time": current_time,
-                        "score": score,
-                        "details": f"Temp: {avg_temp:.1f}°C, Hum: {avg_humidity:.1f}%, UV: {max_uv}",
-                    }
+            except (ValueError, TypeError):
+                continue
+
+        possible_slots = []
+        current_time = day_df.index.min()
+        day_end_time = day_df.index.max()
+
+        while current_time + timedelta(minutes=workout_duration_min) <= day_end_time:
+            workout_end = current_time + timedelta(minutes=workout_duration_min)
+            # Check if free
+            is_free = all(
+                current_time.time() >= busy_end or workout_end.time() <= busy_start
+                for busy_start, busy_end in busy_times
+            )
+            if is_free:
+                window_df = day_df.loc[current_time:workout_end]
+                if not window_df.empty:
+                    avg_temp = window_df["Temperature (°C)"].mean()
+                    avg_humidity = window_df["Humidity (%)"].mean()
+                    max_uv = window_df["UV Index"].max()
+                    # Scoring (lower is better)
+                    score = (
+                        max(0, avg_temp - 22) * 2
+                        + min(0, avg_temp - 15) * -1
+                        + max(0, avg_humidity - 60) * 0.5
+                        + max_uv * 5
+                    )
+                    if not (
+                        current_time >= window_df["sunrise"].iloc[0]
+                        and workout_end <= window_df["sunset"].iloc[0]
+                    ):
+                        score += 5  # Penalty for darkness
+                    else:
+                        score -= 10  # Bonus for daylight
+                    possible_slots.append(
+                        {
+                            "start_time": current_time,
+                            "score": score,
+                            "details": f"Temp: {avg_temp:.1f}°C, Hum: {avg_humidity:.1f}%, UV: {max_uv}",
+                        }
+                    )
+            current_time += timedelta(minutes=30)
+        if possible_slots:
+            best_slot = min(possible_slots, key=lambda x: x["score"])
+            day_label = (
+                "Today"
+                if day_index == 0
+                else (
+                    "Tomorrow"
+                    if day_index == 1
+                    else best_slot["start_time"].strftime("%A")
                 )
-        current_time += timedelta(minutes=30)
-    sorted_slots = sorted(possible_slots, key=lambda x: x["score"])
-    return sorted_slots[:top_n]
+            )
+            best_slot["day_label"] = day_label
+            daily_bests.append(best_slot)
+    return daily_bests
+
+
+# (Other functions like create_unified_df remain unchanged but are not shown for brevity)

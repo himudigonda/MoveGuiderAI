@@ -13,7 +13,7 @@ from logic.planner import (
     prepare_comfort_wheel_data,
     build_gantt_df,
     get_gantt_background_annotations,
-    find_optimal_workout_slots,
+    find_daily_best_workout,
 )
 from logic.performance import model_energy_curve
 from logic.hydration import calculate_hydration_needs
@@ -147,6 +147,7 @@ if st.button("Generate Comparison", type="primary"):
 
 # --- Display charts if data is available ---
 if "df1" in st.session_state:
+    # (Data loading and user settings retrieval remain the same)
     df1, df2 = st.session_state["df1"], st.session_state["df2"]
     c1_name, c2_name = st.session_state["city1"], st.session_state["city2"]
 
@@ -156,34 +157,36 @@ if "df1" in st.session_state:
     sleep_time = get_time_from_str(current_settings.get("sleep_time"), time(22, 30))
     user_routine = st.session_state.active_profile.get("routine", [])
 
+    # --- GANTT CHART SECTION (RE-ORGANIZED INTO COLUMNS) ---
     st.header("🗓️ Daily Routine Planner")
+    st.markdown(
+        "Your AZ-based routine, visualized in local time with environmental context."
+    )
+
     gantt_df = build_gantt_df(user_routine, df1, c1_name, df2, c2_name)
 
-    # --- UPDATED: Full-width Gantt charts in separate rows ---
-    st.markdown(f"**Timeline for {c1_name.split(',')[0]}**")
-    df1_gantt = gantt_df[gantt_df["Resource"] == c1_name.split(",")[0]]
-    bg_shapes1 = get_gantt_background_annotations(df1)
-    gantt_fig1 = plot_gantt_schedule(df1_gantt, c1_name, c2_name, bg_shapes1)
-    if gantt_fig1:
-        st.plotly_chart(gantt_fig1, use_container_width=True)
+    gantt_col1, gantt_col2 = st.columns(2)
+    with gantt_col1:
+        df1_gantt = gantt_df[gantt_df["Resource"] == c1_name.split(",")[0]]
+        bg_shapes1 = get_gantt_background_annotations(df1)
+        gantt_fig1 = plot_gantt_schedule(df1_gantt, bg_shapes1)
+        if gantt_fig1:
+            st.plotly_chart(gantt_fig1, use_container_width=True)
 
-    st.markdown(f"**Timeline for {c2_name.split(',')[0]}**")
-    df2_gantt = gantt_df[gantt_df["Resource"] == c2_name.split(",")[0]]
-    bg_shapes2 = get_gantt_background_annotations(df2)
-    gantt_fig2 = plot_gantt_schedule(df2_gantt, c1_name, c2_name, bg_shapes2)
-    if gantt_fig2:
-        st.plotly_chart(gantt_fig2, use_container_width=True)
+    with gantt_col2:
+        df2_gantt = gantt_df[gantt_df["Resource"] == c2_name.split(",")[0]]
+        bg_shapes2 = get_gantt_background_annotations(df2)
+        gantt_fig2 = plot_gantt_schedule(df2_gantt, bg_shapes2)
+        if gantt_fig2:
+            st.plotly_chart(gantt_fig2, use_container_width=True)
 
     st.markdown(
-        """
-        <span style="background-color: rgba(119, 221, 119, 0.2); padding: 2px 6px; border-radius: 4px;">Green Zones</span>: Optimal comfort (Temp 18-25°C, Low UV). Ideal for walks and outdoor breaks.  
-        &nbsp;&nbsp;
-        <span style="background-color: rgba(255, 82, 82, 0.2); padding: 2px 6px; border-radius: 4px;">Red Zones</span>: High Heat (>30°C) or High UV (>7). Caution advised for outdoor activity.
-        """,
+        """<span style="background-color: rgba(119, 221, 119, 0.2); padding: 2px 6px; border-radius: 4px;">Green Zones</span>: Optimal comfort.  \
+        &nbsp;&nbsp;<span style="background-color: rgba(255, 82, 82, 0.2); padding: 2px 6px; border-radius: 4px;">Red Zones</span>: High Heat/UV.""",
         unsafe_allow_html=True,
     )
 
-    # --- NEW: WORKOUT RECOMMENDER SECTION ---
+    # --- WORKOUT RECOMMENDER SECTION (UPDATED LOGIC) ---
     with st.expander("🏋️‍♀️ Find the Best Workout Times", expanded=True):
         workout_duration = st.number_input(
             "Desired workout duration (minutes)",
@@ -192,33 +195,33 @@ if "df1" in st.session_state:
             value=60,
             step=15,
         )
+
         rec_col1, rec_col2 = st.columns(2)
         with rec_col1:
             st.subheader(f"For {c1_name.split(',')[0]}")
-            recommendations1 = find_optimal_workout_slots(
+            recommendations1 = find_daily_best_workout(
                 df1, user_routine, workout_duration
             )
             if recommendations1:
-                for i, rec in enumerate(recommendations1):
-                    emoji = (
-                        "🏆" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "✅"
-                    )
+                for rec in recommendations1:
                     st.markdown(
-                        f"{emoji} **{rec['start_time'].strftime('%a, %I:%M %p')}** ({rec['details']})"
+                        f"**{rec['day_label']}:** {rec['start_time'].strftime('%I:%M %p')} ({rec['details']})"
                     )
+            else:
+                st.info("No ideal slots found in the next 3 days.")
+
         with rec_col2:
             st.subheader(f"For {c2_name.split(',')[0]}")
-            recommendations2 = find_optimal_workout_slots(
+            recommendations2 = find_daily_best_workout(
                 df2, user_routine, workout_duration
             )
             if recommendations2:
-                for i, rec in enumerate(recommendations2):
-                    emoji = (
-                        "🏆" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "✅"
-                    )
+                for rec in recommendations2:
                     st.markdown(
-                        f"{emoji} **{rec['start_time'].strftime('%a, %I:%M %p')}** ({rec['details']})"
+                        f"**{rec['day_label']}:** {rec['start_time'].strftime('%I:%M %p')} ({rec['details']})"
                     )
+            else:
+                st.info("No ideal slots found in the next 3 days.")
 
     st.header("\U0001f9d8 Personalized Productivity & Wellness")
     st.plotly_chart(

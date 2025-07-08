@@ -1,54 +1,69 @@
 # plotting/gantt.py
 import plotly.figure_factory as ff
 import pandas as pd
+from typing import List, Dict, Any
+from datetime import datetime, time, date
+
+# --- A constant to match the logic file, ensuring axis ranges are correct ---
+REFERENCE_DATE = date(2024, 1, 1)
 
 
 def plot_gantt_schedule(
-    gantt_df: pd.DataFrame,
-    city1_name: str,
-    city2_name: str,
-    background_shapes: list | None = None,
+    gantt_df: pd.DataFrame, background_shapes: List[Dict[str, Any]] = None
 ):
     """
-    Creates an interactive Gantt chart with environmental background highlights.
+    CORRECTED: Creates a 24-HOUR Gantt chart with environmental highlights.
+    Fixes the color mapping and indexing issue.
     """
     if gantt_df.empty:
-        return None  # Return None if there's no data to plot
+        return None
 
-    # Define colors for the chart
-    city_colors = {
-        city1_name.split(",")[0]: "rgb(255, 87, 87)",  # Red
-        city2_name.split(",")[0]: "rgb(0, 128, 0)",  # Green
+    city_name = gantt_df["Resource"].iloc[0]
+
+    # The color dictionary keys MUST match the values in the 'Resource' column.
+    # This dictionary might seem simple, but it's what Plotly needs.
+    colors = {
+        city_name: (
+            "rgb(255, 87, 87)" if "tempe" in city_name.lower() else "rgb(0, 128, 0)"
+        )
     }
 
-    # Create the Gantt chart
+    # --- THE FIX IS HERE ---
     fig = ff.create_gantt(
         gantt_df,
-        colors=city_colors,
-        index_col="Resource",
-        show_colorbar=True,
-        group_tasks=True,
-        title="Your Daily Routine: Environmentally-Aware Timeline",
+        colors=colors,
+        index_col="Resource",  # Index by the Resource (e.g., 'Tempe') for coloring.
+        show_colorbar=False,
+        group_tasks=True,  # This is CRUCIAL. It tells Plotly to group tasks by Resource.
+        title=f"Daily Schedule for {city_name}",
     )
 
-    # Improve layout
+    # Define the 24-hour range for the x-axis
+    x_axis_start = datetime.combine(REFERENCE_DATE, time(0, 0)).replace(
+        tzinfo=gantt_df["Start"].iloc[0].tzinfo
+    )
+    x_axis_end = datetime.combine(REFERENCE_DATE, time(23, 59)).replace(
+        tzinfo=gantt_df["Start"].iloc[0].tzinfo
+    )
+
     layout_updates = {
-        "xaxis_title": "Time of Day (Local Time for Each City)",
-        "yaxis_title": "Tasks",
+        "xaxis_title": "Time of Day (Local Time)",
+        "yaxis_title": "",  # Cleaner look
         "xaxis": {
             "type": "date",
-            "tickformat": "%I:%M %p",  # Format as 12-hour time with AM/PM
-            "rangebreaks": [
-                dict(bounds=[23, 6], pattern="hour"),  # Hide overnight hours
-            ],
+            "tickformat": "%I %p",
+            "range": [x_axis_start, x_axis_end],
             "showgrid": True,
             "gridcolor": "rgba(0,0,0,0.1)",
-            "gridwidth": 1,
-            "dtick": 3600000,
+            "dtick": 7200000,  # Two hours in milliseconds for cleaner ticks
         },
+        # Reverse y-axis so morning tasks are at the top
+        "yaxis": {"autorange": "reversed"},
     }
+
     if background_shapes:
         layout_updates["shapes"] = background_shapes
+
     fig.update_layout(**layout_updates)
 
     return fig
