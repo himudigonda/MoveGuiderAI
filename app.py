@@ -9,18 +9,25 @@ from logic import (
     create_unified_df,
     get_plot_annotations,
     model_energy_curve,
+    calculate_hydration_needs,
+    prepare_comfort_wheel_data,
 )
-from plotting import plot_combined_metric, plot_energy_curve
+from plotting import (
+    plot_combined_metric,
+    plot_energy_curve,
+    plot_hydration_timeline,
+    plot_comfort_wheel,
+)
 
 st.set_page_config(page_title="MoveGuiderAI", layout="wide")
 
 with st.sidebar:
     st.header("\U0001f464 User Profile")
     user_weight_kg = st.number_input(
-        "Your Weight (kg)", min_value=40, max_value=150, value=70
+        "Your Weight (kg)", min_value=40, max_value=150, value=64
     )
     st.header("\U0001f319 Circadian Rhythm")
-    wake_time = st.time_input("Wake-up time", value=time(6, 30))
+    wake_time = st.time_input("Wake-up time", value=time(5, 00))
     sleep_time = st.time_input("Bedtime", value=time(22, 30))
 
 
@@ -82,5 +89,20 @@ if "df1" in st.session_state:
     uv_fig = plot_combined_metric(uv_df, "UV Index", c1_name, c2_name, annotations)
     st.plotly_chart(uv_fig, use_container_width=True)
     st.header("Personalized Metrics")
-    energy_fig = plot_energy_curve(st.session_state["energy_df"])
-    st.plotly_chart(energy_fig, use_container_width=True)
+    # --- New: 3-column layout for personalized metrics ---
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        energy_fig = plot_energy_curve(st.session_state["energy_df"])
+        st.plotly_chart(energy_fig, use_container_width=True)
+    with col2:
+        hydration_df1 = calculate_hydration_needs(
+            st.session_state["df1"], user_weight_kg
+        )
+        hydration_fig1 = plot_hydration_timeline(
+            hydration_df1, st.session_state["city1"]
+        )
+        st.plotly_chart(hydration_fig1, use_container_width=True)
+    with col3:
+        comfort_df1 = prepare_comfort_wheel_data(st.session_state["df1"])
+        comfort_fig1 = plot_comfort_wheel(comfort_df1, st.session_state["city1"])
+        st.plotly_chart(comfort_fig1, use_container_width=True)

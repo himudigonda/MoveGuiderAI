@@ -245,3 +245,60 @@ def model_energy_curve(wake_time: time, sleep_time: time) -> pd.DataFrame:
     curve_df = pd.DataFrame({"Hour": hours_in_day, "Performance": performance})
     curve_df = curve_df.round(1)
     return curve_df
+
+
+def calculate_hydration_needs(
+    city_df: pd.DataFrame, user_weight_kg: float
+) -> pd.DataFrame:
+    """
+    Computes hourly and cumulative water intake recommendations.
+    """
+    # Simplified formula:
+    # Base: 35 ml per kg of body weight per day
+    # Extra for heat: 150 ml per hour for every 5°C above 25°C
+    # Extra for humidity: 50 ml per hour if humidity > 60%
+
+    df = city_df[["Temperature (°C)", "Humidity (%)"]].copy()
+
+    # Calculate daily base intake and distribute over 16 waking hours
+    base_hourly_intake_ml = (user_weight_kg * 35) / 16
+
+    # Calculate extra needs for each hour
+    temp_extra = df["Temperature (°C)"].apply(lambda t: max(0, (t - 25) / 5) * 150)
+    humidity_extra = df["Humidity (%)"].apply(lambda h: 50 if h > 60 else 0)
+
+    # Calculate total and cumulative intake
+    df["Recommended Intake (ml)"] = base_hourly_intake_ml + temp_extra + humidity_extra
+    df["Cumulative Intake (ml)"] = df["Recommended Intake (ml)"].cumsum()
+
+    # We only need the first 24 hours for the timeline
+    return df.iloc[:24]
+
+
+def prepare_comfort_wheel_data(city_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepares data for the Polar Comfort Wheel radar chart.
+    Normalizes current values against ideal ranges.
+    """
+    # Define ideal comfort ranges
+    ideal_ranges = {
+        "Temperature (°C)": [20, 24],
+        "Humidity (%)": [40, 60],
+        "UV Index": [0, 2],
+    }
+
+    # Get the current hour's data (first row of the forecast)
+    current_metrics = city_df.iloc[0]
+
+    data = []
+    for metric, ideal_range in ideal_ranges.items():
+        value = current_metrics[metric]
+        data.append({"Metric": metric, "Value": value, "Category": "Current Value"})
+        data.append(
+            {"Metric": metric, "Value": ideal_range[0], "Category": "Ideal Range"}
+        )
+        data.append(
+            {"Metric": metric, "Value": ideal_range[1], "Category": "Ideal Range"}
+        )
+
+    return pd.DataFrame(data)
