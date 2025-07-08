@@ -122,64 +122,59 @@ def plot_hydration_timeline(df: pd.DataFrame, city_name: str):
     return fig
 
 
-def plot_comfort_wheel(df: pd.DataFrame, city_name: str):
+def plot_comfort_wheel(df: pd.DataFrame, city1_name: str, city2_name: str):
     """
-    REVISED: Creates a radar chart (polar chart) for comfort metrics without using pivot.
+    REVISED: Creates a radar chart comparing two cities against an ideal range.
     """
-    # --- Data Preparation (No Pivot) ---
+    fig = go.Figure()
 
-    # 1. Get the ideal range data by filtering and grouping
+    # 1. Ideal Range Data (Green Band)
     ideal_df = (
-        df[df["Category"] == "Ideal Range"]
+        df[df["City"] == "Ideal"]
         .groupby("Metric")["Value"]
         .agg(["min", "max"])
         .reset_index()
     )
+    metric_order = ideal_df["Metric"]  # Establish a consistent order
 
-    # 2. Get the current value data by filtering
-    current_df = df[df["Category"] == "Current Value"][["Metric", "Value"]]
-
-    # Ensure the order of metrics is the same for both dataframes
-    # This is crucial for the plot to align correctly.
-    metric_order = ideal_df["Metric"]
-    current_df = current_df.set_index("Metric").loc[metric_order].reset_index()
-
-    fig = go.Figure()
-
-    # Add the 'Ideal Range' as a filled area
-    # We trace from the min value out to the max value and back to the min to create a filled band
     fig.add_trace(
         go.Scatterpolar(
-            r=list(ideal_df["max"]) + list(ideal_df["max"])[:1],  # Close the shape
+            r=list(ideal_df["max"]) + list(ideal_df["max"])[:1],
             theta=list(ideal_df["Metric"]) + list(ideal_df["Metric"])[:1],
             fill="toself",
-            fillcolor="rgba(44, 160, 44, 0.3)",
-            line=dict(color="rgba(44, 160, 44, 0.5)"),
+            fillcolor="rgba(44, 160, 44, 0.2)",
+            line=dict(color="rgba(44, 160, 44, 0.4)"),
             name="Ideal Range",
         )
     )
 
-    # Add the 'Current Values' as a separate line on top
-    fig.add_trace(
-        go.Scatterpolar(
-            r=list(current_df["Value"]) + list(current_df["Value"])[:1],
-            theta=list(current_df["Metric"]) + list(current_df["Metric"])[:1],
-            fill="toself",
-            fillcolor="rgba(255, 87, 87, 0.4)",
-            line=dict(color="red"),
-            name="Current Value",
-        )
-    )
+    # --- NEW: Trace for each city ---
+    city_plot_config = {
+        city1_name: {"color": "red", "fill": "rgba(255, 87, 87, 0.4)"},
+        city2_name: {"color": "green", "fill": "rgba(0, 128, 0, 0.4)"},
+    }
 
-    # Determine a dynamic range for the radial axis
-    max_val = max(ideal_df["max"].max(), current_df["Value"].max())
+    for city, config in city_plot_config.items():
+        city_df = (
+            df[df["City"] == city].set_index("Metric").loc[metric_order].reset_index()
+        )
+        fig.add_trace(
+            go.Scatterpolar(
+                r=list(city_df["Value"]) + list(city_df["Value"])[:1],
+                theta=list(city_df["Metric"]) + list(city_df["Metric"])[:1],
+                fill="toself",
+                fillcolor=config["fill"],
+                line=dict(color=config["color"]),
+                name=f"Current: {city.split(',')[0]}",
+            )
+        )
+
+    max_val = df[df["Category"] == "Current"]["Value"].max()
 
     fig.update_layout(
-        polar=dict(
-            radialaxis=dict(visible=True, range=[0, max_val * 1.1])  # Add 10% padding
-        ),
+        polar=dict(radialaxis=dict(visible=True, range=[0, max(max_val, 30) * 1.1])),
         showlegend=True,
-        title=f"Polar Comfort Wheel for {city_name.split(',')[0]}",
+        title=f"Polar Comfort Wheel: {city1_name.split(',')[0]} (Red) vs. {city2_name.split(',')[0]} (Green)",
+        height=500,  # Make the chart taller
     )
-
     return fig

@@ -275,30 +275,61 @@ def calculate_hydration_needs(
     return df.iloc[:24]
 
 
-def prepare_comfort_wheel_data(city_df: pd.DataFrame) -> pd.DataFrame:
+def prepare_comfort_wheel_data(
+    city1_df: pd.DataFrame, city1_name: str, city2_df: pd.DataFrame, city2_name: str
+) -> pd.DataFrame:
     """
-    Prepares data for the Polar Comfort Wheel radar chart.
-    Normalizes current values against ideal ranges.
+    REVISED: Prepares data for a dual-city Polar Comfort Wheel.
     """
-    # Define ideal comfort ranges
     ideal_ranges = {
         "Temperature (°C)": [20, 24],
         "Humidity (%)": [40, 60],
         "UV Index": [0, 2],
     }
 
-    # Get the current hour's data (first row of the forecast)
-    current_metrics = city_df.iloc[0]
+    all_data = []
 
-    data = []
+    # Process City 1
+    current_metrics1 = city1_df.iloc[0]
     for metric, ideal_range in ideal_ranges.items():
-        value = current_metrics[metric]
-        data.append({"Metric": metric, "Value": value, "Category": "Current Value"})
-        data.append(
-            {"Metric": metric, "Value": ideal_range[0], "Category": "Ideal Range"}
-        )
-        data.append(
-            {"Metric": metric, "Value": ideal_range[1], "Category": "Ideal Range"}
+        all_data.append(
+            {
+                "Metric": metric,
+                "Value": current_metrics1[metric],
+                "City": city1_name,
+                "Category": "Current",
+            }
         )
 
-    return pd.DataFrame(data)
+    # Process City 2
+    current_metrics2 = city2_df.iloc[0]
+    for metric, ideal_range in ideal_ranges.items():
+        all_data.append(
+            {
+                "Metric": metric,
+                "Value": current_metrics2[metric],
+                "City": city2_name,
+                "Category": "Current",
+            }
+        )
+
+    # Add Ideal Range (only needs to be added once)
+    for metric, ideal_range in ideal_ranges.items():
+        all_data.append(
+            {
+                "Metric": metric,
+                "Value": ideal_range[0],
+                "City": "Ideal",
+                "Category": "Ideal",
+            }
+        )
+        all_data.append(
+            {
+                "Metric": metric,
+                "Value": ideal_range[1],
+                "City": "Ideal",
+                "Category": "Ideal",
+            }
+        )
+
+    return pd.DataFrame(all_data)
